@@ -1,8 +1,5 @@
-/**
- *Submitted for verification at BscScan.com on 2023-05-09
-*/
+//SPDX-License-Identifier: Business Source License 1.1
 
-// SPDX-License-Identifier: MIT 
 // File: @openzeppelin-4/contracts/token/ERC20/IERC20.sol test
 
 // OpenZeppelin Contracts (last updated v4.6.0) (token/ERC20/IERC20.sol)
