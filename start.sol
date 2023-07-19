@@ -2337,8 +2337,8 @@ contract StrategyThenaGamma is OwnableUpgradeable,PausableUpgradeable, GasFeeThr
 
     //-----------
 
-    // adjust compound percent
-    function setrewardsPercent(uint256 _percent) public onlyOwner {
+    // adjust reward percent
+    function setRewardsPercent(uint256 _percent) public onlyOwner {
         require(_percent <= 100, "!cap");
         rewardsPercent = _percent;
         emit SetrewardsPercent(_percent);
