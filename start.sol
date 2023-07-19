@@ -1984,7 +1984,7 @@ contract StrategyThenaGamma is OwnableUpgradeable,PausableUpgradeable, GasFeeThr
     uint256 public WITHDRAWAL_FEE_CAP;
     uint256 public WITHDRAWAL_MAX;
     uint256 public withdrawalFee;
-    uint256 public compoundPercent;
+    uint256 public rewardsPercent;
     uint256 public feesTotal;
     uint256 public feesCall;
     uint256 public feesTeam;
@@ -1996,7 +1996,7 @@ contract StrategyThenaGamma is OwnableUpgradeable,PausableUpgradeable, GasFeeThr
 
     event SetStratFeeId(uint256 feeId);
     event SetWithdrawalFee(uint256 withdrawalFee);
-    event SetCompoundPercent(uint256 compoundPercen);
+    event SetrewardsPercent(uint256 compoundPercen);
     event SetVault(address vault);
     event SetUnirouter(address unirouter);
     event SetUsdfiFeeRecipient(address usdfiFeeRecipient);
@@ -2029,7 +2029,7 @@ contract StrategyThenaGamma is OwnableUpgradeable,PausableUpgradeable, GasFeeThr
 
         WITHDRAWAL_FEE_CAP = 50;
         WITHDRAWAL_MAX = 10000;
-        compoundPercent = 25;
+        rewardsPercent = 25;
         feesTotal = 10;
         feesCall = 10;
         feesTeam = 90;
@@ -2135,7 +2135,7 @@ contract StrategyThenaGamma is OwnableUpgradeable,PausableUpgradeable, GasFeeThr
     }
 
     function createStable() internal {
-        uint256 nativeBal = IERC20(native).balanceOf(address(this)) * compoundPercent / 100; 
+        uint256 nativeBal = IERC20(native).balanceOf(address(this)) * rewardsPercent / 100; 
         usdfiRouter.swapExactTokensForTokens(nativeBal, 1, outputToStableRoute, address(this), block.timestamp);
     }
 
@@ -2338,10 +2338,10 @@ contract StrategyThenaGamma is OwnableUpgradeable,PausableUpgradeable, GasFeeThr
     //-----------
 
     // adjust compound percent
-    function setCompoundPercent(uint256 _percent) public onlyOwner {
+    function setrewardsPercent(uint256 _percent) public onlyOwner {
         require(_percent <= 100, "!cap");
-        compoundPercent = _percent;
-        emit SetCompoundPercent(_percent);
+        rewardsPercent = _percent;
+        emit SetrewardsPercent(_percent);
     }
 
     // adjust withdrawal fee
