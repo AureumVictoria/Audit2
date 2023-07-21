@@ -1,4 +1,4 @@
-//SPDX-License-Identifier: Business Source License 1.1
+// SPDX-License-Identifier: Business Source License 1.1
 
 pragma solidity 0.8.19;
 
@@ -100,6 +100,28 @@ contract UsdfiVaultV1 is ERC20Upgradeable, OwnableUpgradeable, ReentrancyGuardUp
      */
     function depositAll(address _sponsor) external {
         deposit(want().balanceOf(msg.sender), _sponsor);
+    }
+
+    /**
+     * @dev The entrypoint of funds into the system. People deposit for other People with this function
+     * into the vault. The vault is then in charge of sending funds into the strategy.
+     */
+    function depositFor(uint _amount, address _user) public nonReentrant {
+        _updateRewards(_user);
+        strategy.beforeDeposit();
+
+        uint256 _pool = balance();
+        want().safeTransferFrom(msg.sender, address(this), _amount);
+        earn();
+        uint256 _after = balance();
+        _amount = _after - _pool; // Additional check for deflationary tokens
+        uint256 shares = 0;
+        if (totalSupply() == 0) {
+            shares = _amount;
+        } else {
+            shares = (_amount * totalSupply()) / _pool;
+        }
+        _mint(_user, shares);
     }
 
     /**
