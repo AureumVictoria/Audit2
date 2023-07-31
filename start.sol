@@ -150,7 +150,7 @@ interface IERC20Permit {
 
 // OpenZeppelin Contracts (last updated v4.7.0) (utils/Address.sol)
 
-pragma solidity ^0.8.1;
+pragma solidity ^0.8.0;
 
 /**
  * @dev Collection of functions related to the address type
@@ -486,10 +486,10 @@ library SafeERC20 {
     }
 }
 
-// File: contracts/BIFI/interfaces/common/ISolidlyPair.sol
+// File: ./ISolidlyPair.sol
 
 
-pragma solidity >=0.6.0 <0.9.0;
+pragma solidity ^0.8.0;
 
 interface ISolidlyPair {
     function factory() external view returns (address);
@@ -501,10 +501,9 @@ interface ISolidlyPair {
     function getAmountOut(uint256 amountIn, address tokenIn) external view returns (uint256);
 }
 
-// File: contracts/BIFI/interfaces/common/IRewardPool.sol
+// File: ./IRewardPool.sol
 
-
-pragma solidity >=0.6.0 <0.9.0;
+pragma solidity ^0.8.0;
 
 interface IRewardPool {
     function deposit(uint256 amount) external;
@@ -519,10 +518,10 @@ interface IRewardPool {
     function emergencyWithdraw() external;
 }
 
-// File: contracts/BIFI/interfaces/common/IERC20Extended.sol
+// File: ./IERC20Extended.sol
 
 
-pragma solidity >=0.6.0 <0.9.0;
+pragma solidity ^0.8.0;
 
 interface IERC20Extended {
     function symbol() external view returns (string memory);
@@ -1114,36 +1113,7 @@ abstract contract PausableUpgradeable is Initializable, ContextUpgradeable {
     uint256[49] private __gap;
 }
 
-// File: contracts/BIFI/utils/IGasPrice.sol
-
-
-pragma solidity >=0.6.0 <0.9.0;
-
-interface IGasPrice {
-    function maxGasPrice() external returns (uint);
-}
-
-// File: contracts/BIFI/utils/GasFeeThrottler.sol
-
-
-pragma solidity ^0.8.0;
-
-
-contract GasFeeThrottler {
-
-    bool public shouldGasThrottle = true;
-
-    address public gasprice = address(0xA43509661141F254F54D9A326E8Ec851A0b95307);
-
-    modifier gasThrottle() {
-        if (shouldGasThrottle && Address.isContract(gasprice)) {
-            require(tx.gasprice <= IGasPrice(gasprice).maxGasPrice(), "gas is too high!");
-        }
-        _;
-    }
-}
-
-// File: contracts/BIFI/utils/BytesLib.sol
+// File: ./BytesLib.sol
 
 /*
  * @title Solidity Bytes Arrays Utils
@@ -1152,7 +1122,7 @@ contract GasFeeThrottler {
  * @dev Bytes tightly packed arrays utility library for ethereum contracts written in Solidity.
  *      The library lets you concatenate, slice and type cast bytes arrays both in memory and storage.
  */
-pragma solidity >=0.8.0 <0.9.0;
+pragma solidity ^0.8.0;
 
 
 library BytesLib {
@@ -1667,9 +1637,9 @@ library BytesLib {
     }
 }
 
-// File: contracts/BIFI/utils/AlgebraPath.sol
+// File: ./AlgebraPath.sol
 
-pragma solidity >=0.6.0;
+pragma solidity ^0.8.0;
 
 /// @title Functions for manipulating path data for multihop swaps
 /// @dev Credit to Uniswap Labs under GPL-2.0-or-later license:
@@ -1728,10 +1698,10 @@ library Path {
     }
 }
 
-// File: contracts/BIFI/interfaces/common/IUniswapRouterV3WithDeadline.sol
+// File: ./IUniswapRouterV3WithDeadline.sol
 
 
-pragma solidity >=0.6.0;
+pragma solidity ^0.8.0;
 pragma experimental ABIEncoderV2;
 
 interface IUniswapRouterV3WithDeadline {
@@ -1794,7 +1764,7 @@ interface IUniswapRouterV3WithDeadline {
     function exactOutput(ExactOutputParams calldata params) external payable returns (uint256 amountIn);
 }
 
-// File: contracts/BIFI/utils/AlgebraUtils.sol
+// File: ./AlgebraUtils.sol
 
 
 pragma solidity ^0.8.0;
@@ -1842,13 +1812,14 @@ library AlgebraUtils {
     }
 }
 
-// File: contracts/BIFI/strategies/Thena/StrategyThenaGamma.sol
+// File: ./StrategyThenaGamma.sol
 
 pragma solidity ^0.8.0;
 
 interface IGammaUniProxy {
     function getDepositAmount(address pos, address token, uint _deposit) external view returns (uint amountStart, uint amountEnd);
     function deposit(uint deposit0, uint deposit1, address to, address pos, uint[4] memory minIn) external returns (uint shares);
+    function whitelistedAddress() external view returns (address uniProxy);
 }
 
 interface IAlgebraPool {
@@ -1947,7 +1918,9 @@ interface IUsdfiRouter {
 
 //--------------------------------------------------------------------------------
 
-contract StrategyThenaGamma is OwnableUpgradeable,PausableUpgradeable, GasFeeThrottler {
+pragma solidity =0.8.21;
+
+contract StrategyThenaGamma is OwnableUpgradeable,PausableUpgradeable {
     using SafeERC20 for IERC20;
 
     // Tokens used
@@ -1967,7 +1940,6 @@ contract StrategyThenaGamma is OwnableUpgradeable,PausableUpgradeable, GasFeeThr
     address public usdfiDex;
 
     bool public isFastQuote;
-    bool public harvestOnDeposit;
     uint256 public lastHarvest;
     
     bytes public outputToNativePath; // 0xf4c8e32eadec4bfe97e0f595add0f4450a863a11bb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c
@@ -1982,31 +1954,27 @@ contract StrategyThenaGamma is OwnableUpgradeable,PausableUpgradeable, GasFeeThr
     address public usdfiFeeRecipient;
 
     uint256 public WITHDRAWAL_FEE_CAP;
-    uint256 public WITHDRAWAL_MAX;
     uint256 public withdrawalFee;
-    uint256 public compoundPercent;
+    uint256 public rewardPercent;
     uint256 public feesTotal;
-    uint256 public feesCall;
-    uint256 public feesTeam;
 
     event StratHarvest(address indexed harvester, uint256 wantHarvested, uint256 tvl);
     event Deposit(uint256 tvl);
     event Withdraw(uint256 tvl);
-    event ChargedFees(uint256 callFees, uint256 usdfiFees);
+    event ChargedFees(uint256 usdfiFees);
 
-    event SetStratFeeId(uint256 feeId);
     event SetWithdrawalFee(uint256 withdrawalFee);
-    event SetCompoundPercent(uint256 compoundPercen);
+    event SetRewardPercent(uint256 rewardPercen);
     event SetVault(address vault);
     event SetUnirouter(address unirouter);
     event SetUsdfiFeeRecipient(address usdfiFeeRecipient);
+    event SetGammaProxy(address gammaProxy);
 
     function initialize(
         bytes calldata _outputToNativePath,
         bytes calldata _nativeToLp0Path,
         bytes calldata _nativeToLp1Path
      ) public initializer  {
-
         __Ownable_init();
         __Pausable_init();
 
@@ -2017,22 +1985,21 @@ contract StrategyThenaGamma is OwnableUpgradeable,PausableUpgradeable, GasFeeThr
         want = 0x3ec1FFd5dc29190588608Ae9Fd4f93750e84CDA2;
 
         rewardPool = 0x56996C3686E131A73E512d35308f348f987Bc0D5;
+        unirouter = 0x327Dd3208f0bCF590A66110aCB6e5e6941A4EfA0;
 
         gammaProxy = IGammaUniProxy(0xF75c017E3b023a593505e281b565ED35Cc120efa);
         quoter = IAlgebraQuoter(0xeA68020D6A9532EeC42D4dB0f92B83580c39b2cA);
+
         usdfiRouter = IUsdfiRouter(0x226E6a0114729ad4db1c80C55900729D352E2132);
         usdfiDex = 0x226E6a0114729ad4db1c80C55900729D352E2132;
 
         vault = 0x94285e01A6Ae6B7f68cAAD2efe3bD12e705BD646;
-        unirouter = 0x327Dd3208f0bCF590A66110aCB6e5e6941A4EfA0;
         usdfiFeeRecipient = 0xE52b4bCDa011Ad4eBf4D4CAE1848F6FCc4a92e96;
 
         WITHDRAWAL_FEE_CAP = 50;
-        WITHDRAWAL_MAX = 10000;
-        compoundPercent = 25;
+        rewardPercent = 50;
         feesTotal = 10;
-        feesCall = 10;
-        feesTeam = 90;
+        withdrawalFee = 0;
 
         lpToken0 = ISolidlyPair(want).token0();
         lpToken1 = ISolidlyPair(want).token1();
@@ -2044,8 +2011,7 @@ contract StrategyThenaGamma is OwnableUpgradeable,PausableUpgradeable, GasFeeThr
         outputToStableRoute.push(IUsdfiRouter.Routes(native, usdfi, false));
         outputToStableRoute.push(IUsdfiRouter.Routes(usdfi, stable, false));
 
-        harvestOnDeposit = true;
-        withdrawalFee = 0;
+        isFastQuote = true;
 
         _giveAllowances();
     }
@@ -2075,7 +2041,7 @@ contract StrategyThenaGamma is OwnableUpgradeable,PausableUpgradeable, GasFeeThr
         }
 
         if (tx.origin != owner() && !paused()) {
-            uint256 withdrawalFeeAmount = wantBal * withdrawalFee / WITHDRAWAL_MAX;
+            uint256 withdrawalFeeAmount = wantBal * withdrawalFee / 10000;
             wantBal = wantBal - withdrawalFeeAmount;
         }
 
@@ -2084,28 +2050,17 @@ contract StrategyThenaGamma is OwnableUpgradeable,PausableUpgradeable, GasFeeThr
         emit Withdraw(balanceOf());
     }
 
-    function beforeDeposit() external virtual {
-        if (harvestOnDeposit) {
-            require(msg.sender == vault, "!vault");
-            _harvest(tx.origin);
-        }
-    }
-
-    function harvest() external gasThrottle virtual {
-        _harvest(tx.origin);
-    }
-
-    function harvest(address callFeeRecipient) external gasThrottle virtual {
-        _harvest(callFeeRecipient);
+    function harvest() external virtual {
+        _harvest();
     }
 
     // compounds earnings and charges performance fee
-    function _harvest(address callFeeRecipient) internal whenNotPaused {
+    function _harvest() internal whenNotPaused {
         IRewardPool(rewardPool).getReward();
         uint256 outputBal = IERC20(output).balanceOf(address(this));
         if (outputBal > 0) {
             swapRewardsToNative();
-            chargeFees(callFeeRecipient);
+            chargeFees();
             createStable();
             addLiquidity();
             uint256 wantHarvested = balanceOfWant();
@@ -2122,20 +2077,17 @@ contract StrategyThenaGamma is OwnableUpgradeable,PausableUpgradeable, GasFeeThr
     }
 
     // performance fees
-    function chargeFees(address callFeeRecipient) internal {
+    function chargeFees() internal {
         uint256 nativeFeeBal = IERC20(native).balanceOf(address(this)) * feesTotal / 100;
 
-        uint256 callFeeAmount = nativeFeeBal * feesCall / 100;
-        IERC20(native).safeTransfer(callFeeRecipient, callFeeAmount);
-
-        uint256 usdfiFeeAmount = nativeFeeBal * feesTeam / 100;
+        uint256 usdfiFeeAmount = nativeFeeBal;
         IERC20(native).safeTransfer(usdfiFeeRecipient, usdfiFeeAmount);
 
-        emit ChargedFees(callFeeAmount, usdfiFeeAmount);
+        emit ChargedFees(usdfiFeeAmount);
     }
 
     function createStable() internal {
-        uint256 nativeBal = IERC20(native).balanceOf(address(this)) * compoundPercent / 100; 
+        uint256 nativeBal = IERC20(native).balanceOf(address(this)) * rewardPercent / 100; 
         usdfiRouter.swapExactTokensForTokens(nativeBal, 1, outputToStableRoute, address(this), block.timestamp);
     }
 
@@ -2221,20 +2173,6 @@ contract StrategyThenaGamma is OwnableUpgradeable,PausableUpgradeable, GasFeeThr
     // returns rewards unharvested
     function rewardsAvailable() public view returns (uint256) {
         return IRewardPool(rewardPool).earned(address(this));
-    }
-
-    function setHarvestOnDeposit(bool _harvestOnDeposit) external onlyOwner {
-        harvestOnDeposit = _harvestOnDeposit;
-
-        if (harvestOnDeposit) {
-            setWithdrawalFee(0);
-        } else {
-            setWithdrawalFee(10);
-        }
-    }
-
-    function setShouldGasThrottle(bool _shouldGasThrottle) external onlyOwner {
-        shouldGasThrottle = _shouldGasThrottle;
     }
 
     // called as part of strat migration. Sends all the available funds back to the vault.
@@ -2337,11 +2275,11 @@ contract StrategyThenaGamma is OwnableUpgradeable,PausableUpgradeable, GasFeeThr
 
     //-----------
 
-    // adjust compound percent
-    function setCompoundPercent(uint256 _percent) public onlyOwner {
+    // adjust reward percent
+    function setRewardPercent(uint256 _percent) public onlyOwner {
         require(_percent <= 100, "!cap");
-        compoundPercent = _percent;
-        emit SetCompoundPercent(_percent);
+        rewardPercent = _percent;
+        emit SetRewardPercent(_percent);
     }
 
     // adjust withdrawal fee
@@ -2369,6 +2307,12 @@ contract StrategyThenaGamma is OwnableUpgradeable,PausableUpgradeable, GasFeeThr
         emit SetUsdfiFeeRecipient(_usdfiFeeRecipient);
     }
 
+    // set new usdfi fee address to receive usdfi fees
+    function setGammaProxy(address _address) external onlyOwner{
+    gammaProxy = IGammaUniProxy(_address);
+    emit SetGammaProxy(_address);
+    }
+
     function depositFee() public virtual view returns (uint256) {
         return 0;
     }
@@ -2376,4 +2320,5 @@ contract StrategyThenaGamma is OwnableUpgradeable,PausableUpgradeable, GasFeeThr
     function withdrawFee() public virtual view returns (uint256) {
         return paused() ? 0 : withdrawalFee;
     }
+
 }
