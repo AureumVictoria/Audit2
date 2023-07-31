@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Business Source License 1.1
 
-pragma solidity 0.8.19;
+pragma solidity =0.8.21;
 
 import "./ERC20Upgradeable.sol";
 import "./SafeERC20Upgradeable.sol";
@@ -16,6 +16,7 @@ import "./IReferrals.sol";
  */
 contract UsdfiVaultV1 is ERC20Upgradeable, OwnableUpgradeable, ReentrancyGuardUpgradeable {
     using SafeERC20Upgradeable for IERC20Upgradeable;
+    using AddressUpgradeable for address;
 
     // The strategy currently in use by the vault.
     IStrategy public strategy;
@@ -23,6 +24,7 @@ contract UsdfiVaultV1 is ERC20Upgradeable, OwnableUpgradeable, ReentrancyGuardUp
     uint256 public rewardIndex;
     mapping(address => uint256) public rewardIndexOf;
     mapping(address => uint256) public earned;
+    mapping(address => bool) public whitelist;
     address public STABLE;
     uint256 public nextHarvest;
     bool public harvestPause;
@@ -73,7 +75,7 @@ contract UsdfiVaultV1 is ERC20Upgradeable, OwnableUpgradeable, ReentrancyGuardUp
      * It takes into account the vault contract balance, the strategy contract balance
      *  and the balance deployed in other contracts as part of the strategy.
      */
-    function balance() public view returns (uint) {
+    function balance() public view returns (uint256) {
         return want().balanceOf(address(this)) + IStrategy(strategy).balanceOf();
     }
 
@@ -98,17 +100,19 @@ contract UsdfiVaultV1 is ERC20Upgradeable, OwnableUpgradeable, ReentrancyGuardUp
     /**
      * @dev A helper function to call deposit() with all the sender's funds.
      */
-    function depositAll(address _sponsor) external {
-        deposit(want().balanceOf(msg.sender), _sponsor);
+    function depositAll() external {
+        depositFor(want().balanceOf(msg.sender), msg.sender);
     }
 
     /**
      * @dev The entrypoint of funds into the system. People deposit for other People with this function
      * into the vault. The vault is then in charge of sending funds into the strategy.
      */
-    function depositFor(uint _amount, address _user) public nonReentrant {
+    function depositFor(uint256 _amount, address _user) public nonReentrant {
+        require(checkIfContract(msg.sender) == false || whitelist[msg.sender] == true, "SafeERC20: call from contract");
+        require (_amount > 0, "SafeERC20: 0 amount");
+
         _updateRewards(_user);
-        strategy.beforeDeposit();
 
         uint256 _pool = balance();
         want().safeTransferFrom(msg.sender, address(this), _amount);
@@ -125,34 +129,11 @@ contract UsdfiVaultV1 is ERC20Upgradeable, OwnableUpgradeable, ReentrancyGuardUp
     }
 
     /**
-     * @dev The entrypoint of funds into the system. People deposit with this function
-     * into the vault. The vault is then in charge of sending funds into the strategy.
-     */
-    function deposit(uint _amount, address _sponsor) public nonReentrant {
-        _updateRewards(msg.sender);
-        _newRef(msg.sender, _sponsor);
-        strategy.beforeDeposit();
-
-        uint256 _pool = balance();
-        want().safeTransferFrom(msg.sender, address(this), _amount);
-        earn();
-        uint256 _after = balance();
-        _amount = _after - _pool; // Additional check for deflationary tokens
-        uint256 shares = 0;
-        if (totalSupply() == 0) {
-            shares = _amount;
-        } else {
-            shares = (_amount * totalSupply()) / _pool;
-        }
-        _mint(msg.sender, shares);
-    }
-
-    /**
      * @dev Function to send funds into the strategy and put them to work. It's primarily called
      * by the vault's deposit() function.
      */
     function earn() public {
-        uint _bal = available();
+        uint256 _bal = available();
         want().safeTransfer(address(strategy), _bal);
         strategy.deposit();
     }
@@ -170,6 +151,9 @@ contract UsdfiVaultV1 is ERC20Upgradeable, OwnableUpgradeable, ReentrancyGuardUp
      * tokens are burned in the process.
      */
     function withdraw(uint256 _shares) public {
+        require(checkIfContract(msg.sender) == false || whitelist[msg.sender] == true, "SafeERC20: call from contract");
+        require (_shares > 0, "SafeERC20: 0 amount");
+
         _updateRewards(msg.sender);
 
         uint256 r = (balance() * _shares) / totalSupply();
@@ -185,7 +169,6 @@ contract UsdfiVaultV1 is ERC20Upgradeable, OwnableUpgradeable, ReentrancyGuardUp
                 r = b + _diff;
             }
         }
-
         want().safeTransfer(msg.sender, r);
     }
 
@@ -289,13 +272,11 @@ contract UsdfiVaultV1 is ERC20Upgradeable, OwnableUpgradeable, ReentrancyGuardUp
         harvestPause = _harvestPause;
     }
 
-    function _newRef(address _account, address _sponsor) internal {
-        if (
-            IReferrals(referralContract).isMember(_account) == false &&
-            IReferrals(referralContract).isMember(_sponsor) == true
-        ) {
-            IReferrals(referralContract).addMember(_account, _sponsor);
-        }
+    function checkIfContract(address _address) internal view returns(bool) {
+        return _address.isContract();
     }
 
+    function updateWhitelist(address _address, bool _bool) external onlyOwner {
+        whitelist[_address] = _bool;
+    }
 }
